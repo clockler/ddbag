@@ -1,18 +1,17 @@
 var Patterns = [
-		{"tag": "roll", "exp": /(\d+)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
-		{"tag": "set-open", "exp": /(sum|count)?\(/ },
+		{"tag": "roll", "exp": /(\d[\d,]*)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
+		{"tag": "set-open", "exp": /(sum|count|[a-z\-]+\!)?\(/ },
 		{"tag": "set-close", "exp": /\)/ },
-		{"tag": "number", "exp": /\d+(?:\.\d+)?/ },
-		{"tag": "operand", "exp": /[+-\/\*^%]/ },
-		{"tag": "invalid", "exp": /.+/ } // Will just throw on first instance of invalid input
+		{"tag": "number", "exp": /\d[\d,]*(?:\.\d+)?/ },
+		{"tag": "operand", "exp": /[\+\-\/\*\^\%]/ }
 	],
 	Tokenize = require("./tokenize.js"),
+	Errors = require("./errors.js"),
 	Operators = [
 		{"tag": "keep-high", "exp": /kh(\d+)/ },
 		{"tag": "keep-low", "exp": /kl(\d+)/ },
-		{"tag": "keep-above", "exp": /(?:ka|tn)(\d+)/ },
-		{"tag": "keep-below", "exp": /kb(\d+)/ },
-		{"tag": "invalid", "exp": /.+/ } // Will just throw on first instance of invalid input
+		{"tag": "keep-above", "exp": /ka(\d+)/ },
+		{"tag": "keep-below", "exp": /kb(\d+)/ }
 	],
 	Sort = {
 		"Asc": (a, b) => a - b,
@@ -58,13 +57,24 @@ var Patterns = [
 			},
 		}
 	},
+	Macros = {},
 	MaxEmbeddednessence = 5;
 
 module.exports = function Parse(str, max_embeds)
 {
 	if(typeof(max_embeds) === "number")
 		var MaxEmbeddednessence = max_embeds; // should scope to here
-	var tokens = Tokenize(str, Patterns);
+	var tokens = Tokenize(str, {
+		"patterns": Patterns,
+		"fillGaps": true,
+		"ignoreWhitespace": true
+	});
+	// Validate now
+	var errs = validate(tokens);
+	if(errs.length > 0)
+	{
+		throw new Errors.Validation(str, errs);
+	}
 	return parseTokens(tokens, 0, str, 0);
 }
 
@@ -73,7 +83,7 @@ function parseTokens(tokens, offset, str, embeddednessence)
 	if(!embeddednessence)
 		embeddednessence = 0;
 	if(embeddednessence >= MaxEmbeddednessence)
-		throw new Error("We're in too deep! Stop stacking sets!");
+		throw new Errors.Typed(str, "StackExceeded", {});
 
 	var set = 0,
 		setOpen = null,
@@ -82,29 +92,6 @@ function parseTokens(tokens, offset, str, embeddednessence)
 		tttokens = [];
 
 	tokens.forEach((token, idx) => {
-		// First, check that we haven't skipped over anything
-		if(token.tag === "invalid")
-		{
-			// Get error text for helpful debugging!
-			var next = Tokenize(str, Patterns.slice(0, Patterns.length - 1), token.index),
-				m = "Invalid input at index " + token.index,
-				text = "";
-			if(next.length > 0)
-			{
-				text = str.substr(token.index, next[0].index - token.index);
-				m = "Invalid input '" + text + "' at index " + token.index;
-			}
-			else
-			{
-				text = str.substr(token.index);
-				m = "Invalid input '" + text + "' at index " + token.index;
-			}
-			var e = new Error(m);
-			e.input = str;
-			e.index = token.index;
-			e.text = text;
-			throw e;
-		}
 
 		if(set > 0)
 		{
@@ -133,56 +120,39 @@ function parseTokens(tokens, offset, str, embeddednessence)
 			{
 				// THE BIG ONE
 				token[1] = token[1] || ""; // Empty string here for string indexing in errors (if applicable)
-				var count = token[1],
+				var count = token[1].replace(/\,/g, ""),
 					sides = token[2],
-					ops = token[3] && token[3].length > 0? Tokenize(token[3], Operators) : [],
+					ops = token[3] && token[3].length > 0? Tokenize(token[3], {
+						"patterns": Operators,
+						"fillGaps": true,
+						"ignoreWhitespace": true
+					}) : [],
+					offset = (token.index + token[1].length + token[2].length + 1),
 					dice = [];
+
 				if(!count)
 					count = 1;
+				if(count > 99)
+				{
+					throw new Errors.Typed(str, "TooManyDice", {"count": count});
+				}
 				for(var i = 0; i < count; i++)
 				{
 					dice.push(Math.ceil(Math.random() * sides));
 				}
+				dice = dice.sort(Sort.Desc);
 				ops.forEach(op => { // op
 					if(Operands.Dice.hasOwnProperty(op.tag)) // op
 					{
 						dice = Operands.Dice[op.tag](dice, op[1]); // op op
 						// Oppa gangnam style!
 					}
-					else
-					{
-						// Get error text for helpful debugging!
-						var next = Tokenize(token[3], Operators.slice(0, Operators.length - 1), op.index),
-							offset = (token.index + token[1].length + token[2].length + 1),
-							m = "Invalid input at index " + (offset + op.index),
-							text = "";
-						if(next.length > 0)
-						{
-							text = token[3].substr(op.index, next[0].index - op.index);
-							m = "Invalid input '" + text + "' at index " + (offset + op.index);
-						}
-						else
-						{
-							text = token[3].substr(op.index);
-							m = "Invalid input '" + text + "' at index " + (offset + op.index);
-						}
-						var e = new Error(m);
-						e.input = str;
-						e.index = offset + op.index;
-						e.text = text;
-						throw e;
-
-						// var e = new Error("Invalid input at index " + (token.index + token[1].length + token[2].length + op.index + 1));
-						// e.input = str;
-						// e.index = (token.index + token[1].length + token[2].length + op.index + 1);
-						// throw e;
-					}
 				});
 				tttokens.push(dice);
 			}
 			else if(token.tag === "number")
 			{
-				tttokens.push(Number(token[0]));
+				tttokens.push(Number(token[0].replace(/\,/g, "")));
 			}
 			else if(token.tag === "set-open")
 			{
@@ -197,10 +167,7 @@ function parseTokens(tokens, offset, str, embeddednessence)
 			else if(token.tag === "set-close")
 			{
 				// Error because this means we hit a set-close outside a set
-				var e = new Error("Unmatched ) at index " + token.index);
-				e.index = token.index;
-				e.input = str;
-				throw e;
+				throw new Errors.Typed(str, "UnmatchedClose", {"idx": token.index});
 			}
 			else if(token.tag === "operand")
 			{
@@ -216,14 +183,6 @@ function parseTokens(tokens, offset, str, embeddednessence)
 		var t = Array.isArray(tttokens[0])? "array" : typeof(tttokens[0]);
 		if(t === "array" || t === "number")
 			return tttokens[0];
-		else
-		{
-			var e = new Error("Invalid input at index 0: '" + str + "'");
-			e.index = 0;
-			e.text = str;
-			e.input = str;
-			throw e;
-		}
 	}
 	else
 	{
@@ -258,15 +217,19 @@ function reduceResult(arr)
 				if(prev.type !== "number" || next.type !== "number")
 				{
 					// Check which are invalid
-					var m = "Invalid operand '" + tok.value + "'";
+					var keys = {"op": tok.value},
+						type;
 					if(prev.type !== "number")
-						m += " left side '" + String(prev.value) + "'";
+					{
+						keys.left = String(prev.value);
+						type = "InvalidOpLeft";
+					}
 					if(next.type !== "number")
-						m += " right side '" + String(next.value) + "'";
-					var e = new Error(m);
-					e.left = prev.value;
-					e.right = prev.value;
-					throw e;
+					{
+						keys.right = String(next.value);
+						type = type === "InvalidOpLeft"? "InvalidOpBoth" : "InvalidOpRight";
+					}
+					throw new Errors.Typed("", type, keys);
 				}
 				arr = arr.slice(0, i - 1).concat([{"type": "number", "value": Operands.Arithmetic[op](prev.value, next.value)}]).concat(arr.slice(i + 2));
 				i--;
@@ -277,7 +240,35 @@ function reduceResult(arr)
 	return arr;
 }
 
-module.exports.fmtError = function(err)
+function validate(tokens)
 {
-	return err.input.substr(0, err.index) + "\x1B[31;1m" + err.text + "\x1B[0m" + err.input.substr(err.index + err.text.length);
+	//TODO: Setup system whereby invalid input is ignored if it is adjacent to non-operand tags only, and has whitespace on sides it is adjacent to tags
+	var errs = [];
+	tokens.forEach(tok => {
+		if(tok.tag === "_")
+		{
+			errs.push(tok);
+		}
+		else if(tok.tag === "roll")
+		{
+			// Validate roll mutations
+			if(tok[3] && tok[3].length > 0)
+			{
+				var muts = Tokenize(tok[3], {
+					"patterns": Operators,
+					"fillGaps": true,
+					"ignoreWhitespace": false
+				});
+				muts.forEach(mut => {
+					if(mut.tag === "_")
+					{
+						var offset = (tok.index + tok[1].length + tok[2].length + 1);
+						mut.index += offset;
+						errs.push(mut);
+					}
+				});
+			}
+		}
+	});
+	return errs;
 }

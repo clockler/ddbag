@@ -7,14 +7,14 @@ var Discord = require("discordie"),
 // Bot add URL
 //   https://discordapp.com/api/oauth2/authorize?client_id=282751290029899776&scope=bot&permissions=67488832
 // Permissions:
-//   Add reactions         0x00000040
+//   Add reactions         0x00000040 *
 //   Read messages         0x00000400
 //   Send messages         0x00000800
-//   Embed links           0x00004000
-//   Attach files          0x00008000
-//   Read message history  0x00010000
-//   Use external emoji    0x00040000
-//   Change nickname       0x04000000
+//   Embed links           0x00004000 *
+//   Attach files          0x00008000 *
+//   Read message history  0x00010000 *
+//   Use external emoji    0x00040000 *
+//   Change nickname       0x04000000 *
 // Sum = 67488832
 
 var Client = new Discord({
@@ -27,7 +27,6 @@ var Client = new Discord({
 
 Client.Dispatcher.on("GATEWAY_READY", e => {
 	Log.Network("Connected");
-	// Client.User.setUsername("dbag");
 });
 Client.Dispatcher.on("GATEWAY_RESUMED", e => {
 	Log.Network("Resumed");
@@ -61,8 +60,15 @@ Client.Dispatcher.on("MESSAGE_CREATE", e => {
 		}
 		catch(err)
 		{
-			Log.Error(Parser.fmtError(err));
-			message.channel.sendMessage(message.author.mention + " " + err.message);
+			if(err.name === "ValidationError" || err.name === "RawError")
+			{
+				Log.Debug("=> " + err.errorMessage());
+				message.channel.sendMessage(message.author.mention + " " + err.friendlyMessage());
+			}
+			else
+			{
+				Log.Error(err.message);
+			}
 		}
 	}
 });

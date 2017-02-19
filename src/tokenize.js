@@ -1,5 +1,13 @@
-function matchGlobal(str, regexen, start)
+function matchGlobal(str, start, config)
 {
+	if(typeof(start) === "object")
+	{
+		config = start;
+		start = 0;
+	}
+	var regexen = config.patterns,
+		fillGaps = config.fillGaps || false,
+		ignoreWhite = config.ignoreWhitespace || true;
 	// Single-element array so I don't have to write per-iteration checks
 	if(!Array.isArray(regexen))
 		regexen = [regexen];
@@ -31,11 +39,43 @@ function matchGlobal(str, regexen, start)
 	var currentIndex = 0,
 		match = matchNext(start || 0),
 		matches = [];
+	matches.unmatched = [];
 
 	while(match !== null)
 	{
+		var last = matches.length > 0? matches[matches.length - 1] : {0: "", "index": 0},
+			end = last.index + last[0].length;
+		if(match.index - end > 0)
+		{
+			if(fillGaps && tagged)
+			{
+				var fake = [str.substr(end, match.index - end)];
+				if(!(ignoreWhite && fake[0].match(/^\s*$/)))
+				{
+					fake.index = end;
+					fake.tag = "_";
+					matches.push(fake);
+					matches.unmatched.push(fake);
+				}
+			}
+		}
 		matches.push(match);
 		match = matchNext(match.index + match[0].length);
+	}
+	var last = matches.length > 0? matches[matches.length - 1] : {0: "", "index": 0},
+		end = last.index + last[0].length;
+	if((str.length - 1) - end > 0)
+	{
+		if(fillGaps && tagged)
+		{
+			var fake = [str.substr(end, str.length - end)];
+			if(!(ignoreWhite && fake[0].match(/^\s*$/)))
+			{
+				fake.index = end;
+				fake.tag = "_";
+				matches.push(fake);
+			}
+		}
 	}
 	matches.input = str;
 	return matches;
