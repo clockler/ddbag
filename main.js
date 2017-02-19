@@ -27,10 +27,18 @@ var Client = new Discord({
 
 Client.Dispatcher.on("GATEWAY_READY", e => {
 	Log.Network("Connected");
+	Log.Status("In " + Client.Guilds.length + " guilds");
 });
+Client.Dispatcher.on("GUILD_CREATE", e => {
+	if(!e.becameAvailable)
+	{
+		Log.Status("Added to guild '" + e.guild.name + "'");
+		Log.Status("In " + Client.Guilds.length + " guilds");
+	}
+})
 Client.Dispatcher.on("GATEWAY_RESUMED", e => {
 	Log.Network("Resumed");
-})
+});
 Client.Dispatcher.on("DISCONNECTED", e => {
 	Log.Network("Disconnected: " + e.error.message);
 });
