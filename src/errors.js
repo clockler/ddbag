@@ -75,6 +75,7 @@ var RawMessages = {
 	"InvalidOpBoth": ["Invalid op: {left}{op}{right}", "You can't do '{left}{op}{right}', ya dongus!"],
 	"InvalidOpLeft": ["Invalid op: {left}{op}", "You can't do '{left}{op}', that doesn't make sense!"],
 	"InvalidOpRight": ["Invalid op: {op}{right}", "You can't do '{op}{right}', that doesn't make sense!"],
+	"InvalidOpNeither": ["Invalid op: blank {op}", "You can't just '{op}' nothing. Why even try?"],
 	"TooManyDice": ["Can't roll {count} dice", "Why would you try to roll {count} dice? That's just cruel."]
 }
 

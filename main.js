@@ -52,30 +52,33 @@ Client.Dispatcher.on("MESSAGE_CREATE", e => {
 	{
 		content = content.replace("@" + member.nick, "").replace("@" + member.username, "").trim();
 		Log.Debug(name + ": " + content);
-		try {
-			var res = Parser(content),
-				arr = Array.isArray(res);
-			if(arr && res.length > 0)
-			{
-				Log.Debug("=> [" + res.join(", ") + "]");
-				message.channel.sendMessage(content + ": " + res.join(", "))
-			}
-			else
-			{
-				Log.Debug("=> " + res);
-				message.channel.sendMessage(content + ": " + res);
-			}
-		}
-		catch(err)
+		if(content.length > 0)
 		{
-			if(err.name === "ValidationError" || err.name === "RawError")
-			{
-				Log.Debug("=> " + err.errorMessage());
-				message.channel.sendMessage(message.author.mention + " " + err.friendlyMessage());
+			try {
+				var res = Parser(content),
+					arr = Array.isArray(res);
+				if(arr && res.length > 0)
+				{
+					Log.Debug("=> [" + res.join(", ") + "]");
+					message.channel.sendMessage(content + ": " + res.join(", "))
+				}
+				else
+				{
+					Log.Debug("=> " + res);
+					message.channel.sendMessage(content + ": " + res);
+				}
 			}
-			else
+			catch(err)
 			{
-				Log.Error(err.message);
+				if(err.name === "ValidationError" || err.name === "RawError")
+				{
+					Log.Debug("=> " + err.errorMessage());
+					message.channel.sendMessage(message.author.mention + " " + err.friendlyMessage());
+				}
+				else
+				{
+					Log.Error(err.stack);
+				}
 			}
 		}
 	}

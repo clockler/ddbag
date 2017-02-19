@@ -214,17 +214,17 @@ function reduceResult(arr)
 			{
 				var prev = arr[i - 1],
 					next = arr[i + 1];
-				if(prev.type !== "number" || next.type !== "number")
+				if((!prev || prev.type !== "number") || (!next || next.type !== "number"))
 				{
 					// Check which are invalid
 					var keys = {"op": tok.value},
-						type;
-					if(prev.type !== "number")
+						type = "InvalidOpNeither";
+					if(prev && prev.type !== "number")
 					{
 						keys.left = String(prev.value);
 						type = "InvalidOpLeft";
 					}
-					if(next.type !== "number")
+					if(next && next.type !== "number")
 					{
 						keys.right = String(next.value);
 						type = type === "InvalidOpLeft"? "InvalidOpBoth" : "InvalidOpRight";
@@ -244,7 +244,7 @@ function validate(tokens)
 {
 	//TODO: Setup system whereby invalid input is ignored if it is adjacent to non-operand tags only, and has whitespace on sides it is adjacent to tags
 	var errs = [];
-	tokens.forEach(tok => {
+	tokens.forEach((tok, idx) => {
 		if(tok.tag === "_")
 		{
 			errs.push(tok);
@@ -267,6 +267,15 @@ function validate(tokens)
 						errs.push(mut);
 					}
 				});
+			}
+		}
+		else if(tok.tag === "operand")
+		{
+			// First or last is invalid.
+			if(idx === 0 || idx === tokens.length - 1)
+			{
+				tok.tag = "_";
+				errs.push(tok);
 			}
 		}
 	});
