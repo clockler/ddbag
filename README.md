@@ -4,6 +4,10 @@ First second version of an older bot. Warning: Bad code ahead.
 
 # Usage
 
+Want it in your server? [Just use this link](https://discordapp.com/api/oauth2/authorize?client_id=282751290029899776&scope=bot&permissions=67488832) to add it. Only the Read Messages and Send Messages permissions are currently used, the others are just there in case I feel like using them later for any reason. None of these require 2FA or are administrative in nature.
+
+Note that I don't currently implement sharding at all. It's on the cards, but will require a more abstracted gateway approach.
+
 See it in your server? Just mention it and go nuts - the main version of this is running as `@dbag#7193`. Any message mentioning the bot is logged, even if it's 100% erroneous, so feel free to put suggestions to me that way if you got 'em. I promise to check the logs if it crashes. You should try to make it do that, too.
 
 ## Rolling Dice
@@ -30,7 +34,7 @@ Raw numbers and dice rolls can intermingle with arithmetic operators, which will
 
 Parentheses can stack your inputs, exactly as you'd expect. Prefixes can also modify how the parentheses resolve - the following are supported:
 
-* `sum({input})` Sum up all dice in the resulting array. Implicit - if the top-level result at finalizing the roll isn't an array of rolled dice, they will be summed.
+* `sum({input})` Sum up all dice in the resulting array. Implicit - if you do anything other than finalize a roll with a set of dice, it will be summed.
 * `count({input})` Return the count of dice rolled. Useful for successes, as in `count(12d6ka5)` to count dice rolling 5 or 6. Of course, doing this manually is probably desirable in most systems, since other results may be important.
 
 
