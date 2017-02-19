@@ -61,7 +61,7 @@ Client.Dispatcher.on("MESSAGE_CREATE", e => {
 		}
 		catch(err)
 		{
-			Log.Error(err.message);
+			Log.Error(Parser.fmtError(err));
 			message.channel.sendMessage(message.author.mention + " " + err.message);
 		}
 	}
