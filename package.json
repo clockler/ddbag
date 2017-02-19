@@ -1,6 +1,6 @@
 {
 	"name": "ddbag",
-	"version": "1.0.0",
+	"version": "1.0.4",
 	"description": "A Discord dice-roller bot",
 	"author": "Tristan Ridden <hello@clockler.com>",
 	"contributors": [
