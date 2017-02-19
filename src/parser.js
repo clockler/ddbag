@@ -1,17 +1,18 @@
 var Patterns = [
-		{"tag": "roll", "exp": /(\d+)?d(\d+|F|SW)([^+-\/\*^%\(\)]+)?/ },
+		{"tag": "roll", "exp": /(\d+)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
 		{"tag": "set-open", "exp": /(sum|count)?\(/ },
 		{"tag": "set-close", "exp": /\)/ },
 		{"tag": "number", "exp": /\d+(?:\.\d+)?/ },
 		{"tag": "operand", "exp": /[+-\/\*^%]/ },
-		{"tag": "whitespace", "exp": /\s+/ }
+		{"tag": "invalid", "exp": /.+/ } // Will just throw on first instance of invalid input
 	],
 	Tokenize = require("./tokenize.js"),
 	Operators = [
 		{"tag": "keep-high", "exp": /kh(\d+)/ },
 		{"tag": "keep-low", "exp": /kl(\d+)/ },
 		{"tag": "keep-above", "exp": /(?:ka|tn)(\d+)/ },
-		{"tag": "keep-below", "exp": /kb(\d+)/ }
+		{"tag": "keep-below", "exp": /kb(\d+)/ },
+		{"tag": "invalid", "exp": /.+/ } // Will just throw on first instance of invalid input
 	],
 	Sort = {
 		"Asc": (a, b) => a - b,
@@ -37,8 +38,8 @@ var Patterns = [
 			"count": (arr) => arr.length
 		},
 		"Dice": {
-			"keep-high": (arr, num) => arr.sort(Sort.Asc).slice(0, num),
-			"keep-low": (arr, num) => arr.sort(Sort.Desc).slice(0, num),
+			"keep-high": (arr, num) => arr.sort(Sort.Desc).slice(0, num),
+			"keep-low": (arr, num) => arr.sort(Sort.Asc).slice(0, num),
 			"keep-above": (arr, num) => {
 				arr = arr.sort(Sort.Desc);
 				for(var i = 0; i < arr.length; i++)
@@ -64,7 +65,7 @@ module.exports = function Parse(str, max_embeds)
 	if(typeof(max_embeds) === "number")
 		var MaxEmbeddednessence = max_embeds; // should scope to here
 	var tokens = Tokenize(str, Patterns);
-	return parseTokens(tokens, str, 0);
+	return parseTokens(tokens, 0, str, 0);
 }
 
 function parseTokens(tokens, offset, str, embeddednessence)
@@ -82,16 +83,29 @@ function parseTokens(tokens, offset, str, embeddednessence)
 
 	tokens.forEach((token, idx) => {
 		// First, check that we haven't skipped over anything
-		if(token.index > cursor)
+		if(token.tag === "invalid")
 		{
-			// Error at the cursor and include everything between the cursor and token
-			var e = new Error("Invalid input at index " + cursor + ": '" + str.substr(cursor, token.index - cursor) + "'");
-			e.index = cursor;
+			// Get error text for helpful debugging!
+			var next = Tokenize(str, Patterns.slice(0, Patterns.length - 1), token.index),
+				m = "Invalid input at index " + token.index,
+				text = "";
+			if(next.length > 0)
+			{
+				text = str.substr(token.index, next[0].index - token.index);
+				m = "Invalid input '" + text + "' at index " + token.index;
+			}
+			else
+			{
+				text = str.substr(token.index);
+				m = "Invalid input '" + text + "' at index " + token.index;
+			}
+			var e = new Error(m);
 			e.input = str;
-			e.text = str.substr(cursor, token.index - cursor);
+			e.index = token.index;
+			e.text = text;
 			throw e;
 		}
-		// Second, just log the tag, index and properties
+
 		if(set > 0)
 		{
 			// We have an open set - ignore everything except set-open and set-close
@@ -107,7 +121,7 @@ function parseTokens(tokens, offset, str, embeddednessence)
 					// Just in case
 					set = 0;
 					// Xu Li: Do the thing!
-					var res = parseTokens(tokens.slice(setOpen + 1, idx), cursor, str, embeddednessence + 1);
+					var res = parseTokens(tokens.slice(setOpen + 1, idx), cursor, str.substr(0, token.index), embeddednessence + 1);
 					res = Operands.Set[setOperand](res);
 					tttokens.push(res);
 				}
@@ -118,11 +132,13 @@ function parseTokens(tokens, offset, str, embeddednessence)
 			if(token.tag === "roll")
 			{
 				// THE BIG ONE
-				//TODO:
+				token[1] = token[1] || ""; // Empty string here for string indexing in errors (if applicable)
 				var count = token[1],
 					sides = token[2],
 					ops = token[3] && token[3].length > 0? Tokenize(token[3], Operators) : [],
 					dice = [];
+				if(!count)
+					count = 1;
 				for(var i = 0; i < count; i++)
 				{
 					dice.push(Math.ceil(Math.random() * sides));
@@ -132,6 +148,34 @@ function parseTokens(tokens, offset, str, embeddednessence)
 					{
 						dice = Operands.Dice[op.tag](dice, op[1]); // op op
 						// Oppa gangnam style!
+					}
+					else
+					{
+						// Get error text for helpful debugging!
+						var next = Tokenize(token[3], Operators.slice(0, Operators.length - 1), op.index),
+							offset = (token.index + token[1].length + token[2].length + 1),
+							m = "Invalid input at index " + (offset + op.index),
+							text = "";
+						if(next.length > 0)
+						{
+							text = token[3].substr(op.index, next[0].index - op.index);
+							m = "Invalid input '" + text + "' at index " + (offset + op.index);
+						}
+						else
+						{
+							text = token[3].substr(op.index);
+							m = "Invalid input '" + text + "' at index " + (offset + op.index);
+						}
+						var e = new Error(m);
+						e.input = str;
+						e.index = offset + op.index;
+						e.text = text;
+						throw e;
+
+						// var e = new Error("Invalid input at index " + (token.index + token[1].length + token[2].length + op.index + 1));
+						// e.input = str;
+						// e.index = (token.index + token[1].length + token[2].length + op.index + 1);
+						// throw e;
 					}
 				});
 				tttokens.push(dice);
@@ -149,14 +193,6 @@ function parseTokens(tokens, offset, str, embeddednessence)
 				set++;
 				setOpen = idx;
 				setOperand = !token[1]? "sum" : token[1];
-				if(!Operands.Set.hasOwnProperty(setOperand))
-				{
-					var e = new Error("Invalid set operation '" + setOperand + "'");
-					e.index = token.index;
-					e.text = setOperand;
-					e.input = str;
-					throw e;
-				}
 			}
 			else if(token.tag === "set-close")
 			{
@@ -173,14 +209,6 @@ function parseTokens(tokens, offset, str, embeddednessence)
 		}
 		cursor = token.index + token[0].length;
 	});
-	if(cursor < str.length)
-	{
-		var e = new Error("Invalid input at index " + cursor + ": '" + str.substr(cursor, token.index - cursor) + "'");
-		e.index = cursor;
-		e.input = str;
-		e.text = str.substr(cursor, token.index - cursor);
-		throw e;
-	}
 	// Resolve everything
 	if(tttokens.length === 1)
 	{
@@ -247,4 +275,9 @@ function reduceResult(arr)
 
 	});
 	return arr;
+}
+
+module.exports.fmtError = function(err)
+{
+	return err.input.substr(0, err.index) + "\x1B[31;1m" + err.text + "\x1B[0m" + err.input.substr(err.index + err.text.length);
 }

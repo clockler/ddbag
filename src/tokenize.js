@@ -1,4 +1,4 @@
-function matchGlobal(str, regexen)
+function matchGlobal(str, regexen, start)
 {
 	// Single-element array so I don't have to write per-iteration checks
 	if(!Array.isArray(regexen))
@@ -29,7 +29,7 @@ function matchGlobal(str, regexen)
 		return lowest;
 	}
 	var currentIndex = 0,
-		match = matchNext(0),
+		match = matchNext(start || 0),
 		matches = [];
 
 	while(match !== null)
