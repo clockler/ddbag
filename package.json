@@ -1,0 +1,31 @@
+{
+	"name": "ddbag",
+	"version": "1.0.0",
+	"description": "A Discord dice-roller bot",
+	"author": "Tristan Ridden <hello@clockler.com>",
+	"contributors": [
+		{
+			"name": "Tristan Ridden",
+			"email": "hello@clockler.com"
+		}
+	],
+	"private": true,
+	"license": "MIT",
+
+	"dependencies": {
+		"discordie": "0.11.x"
+	},
+	"bin": {
+		"dbag": "./main.js"
+	},
+	"main": "src/parser.js",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/clockler/ddbag"
+	},
+	"keywords": [
+		"discord",
+		"dice",
+		"bot"
+	]
+}
