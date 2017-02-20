@@ -76,7 +76,8 @@ var RawMessages = {
 	"InvalidOpLeft": ["Invalid op: {left}{op}", "You can't do '{left}{op}', that doesn't make sense!"],
 	"InvalidOpRight": ["Invalid op: {op}{right}", "You can't do '{op}{right}', that doesn't make sense!"],
 	"InvalidOpNeither": ["Invalid op: blank {op}", "You can't just '{op}' nothing. Why even try?"],
-	"TooManyDice": ["Can't roll {count} dice", "Why would you try to roll {count} dice? That's just cruel."]
+	"TooManyDice": ["Can't roll {count} dice", "Why would you try to roll {count} dice? That's just cruel."],
+	"WeirdDice": ["Can't roll {sides}-sided dice", "How does a {sides}-sided die even roll?"]
 }
 
 function RawError(input, type, keys)

@@ -1,9 +1,9 @@
 var Patterns = [
-		{"tag": "roll", "exp": /(\d[\d,]*)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
+		{"tag": "roll", "exp": /(\d+)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
 		{"tag": "set-open", "exp": /(sum|count|[a-z\-]+\!)?\(/ },
 		{"tag": "set-close", "exp": /\)/ },
-		{"tag": "number", "exp": /\d[\d,]*(?:\.\d+)?/ },
-		{"tag": "operand", "exp": /[\+\-\/\*\^\%]/ }
+		{"tag": "operand", "exp": /[\+\-\/\*\^\%]/ },
+		{"tag": "number", "exp": /\d+(?:\.\d+)?/ }
 	],
 	Tokenize = require("./tokenize.js"),
 	Errors = require("./errors.js"),
@@ -70,6 +70,17 @@ module.exports = function Parse(str, max_embeds)
 		"ignoreWhitespace": true
 	});
 	// Validate now
+	// Ugh, a kludge
+	if(tokens[0].tag === "operand")
+	{
+		if(tokens[0][0] === "-" || tokens[0][0] === "+")
+		{
+			var fake = ["0"];
+			fake.index = -1;
+			fake.tag = "number";
+			tokens.unshift(fake);
+		}
+	}
 	var errs = validate(tokens);
 	if(errs.length > 0)
 	{
@@ -135,6 +146,10 @@ function parseTokens(tokens, offset, str, embeddednessence)
 				if(count > 99)
 				{
 					throw new Errors.Typed(str, "TooManyDice", {"count": count});
+				}
+				if(sides <= 0)
+				{
+					throw new Errors.Typed(str, "WeirdDice", {"sides": sides});
 				}
 				for(var i = 0; i < count; i++)
 				{
