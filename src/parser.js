@@ -1,6 +1,6 @@
 var Patterns = [
 		{"tag": "roll", "exp": /(\d+)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
-		{"tag": "set-open", "exp": /(sum|count|[a-z\-]+\!)?\(/ },
+		{"tag": "set-open", "exp": /(sum|count|group|[a-z\-]+\!)?\(/ },
 		{"tag": "set-close", "exp": /\)/ },
 		{"tag": "operand", "exp": /[\+\-\/\*\^\%]/ },
 		{"tag": "number", "exp": /\d+(?:\.\d+)?/ }
@@ -11,7 +11,9 @@ var Patterns = [
 		{"tag": "keep-high", "exp": /kh(\d+)/ },
 		{"tag": "keep-low", "exp": /kl(\d+)/ },
 		{"tag": "keep-above", "exp": /ka(\d+)/ },
-		{"tag": "keep-below", "exp": /kb(\d+)/ }
+		{"tag": "keep-below", "exp": /kb(\d+)/ },
+		{"tag": "sort-asc", "exp": /sa/ },
+		{"tag": "sort-desc", "exp": /sd?/ }
 	],
 	Sort = {
 		"Asc": (a, b) => a - b,
@@ -34,27 +36,24 @@ var Patterns = [
 				});
 				return s;
 			},
-			"count": (arr) => arr.length
+			"count": (arr) => arr.length,
+			"group": (arr) => {
+				var g = {},
+					r = [];
+				arr.forEach(n => { g[n] = (g[n] || 0) + 1; });
+				Object.keys(g).forEach(n => {
+					r.push((g[n] > 1? g[n] + "x" : "") + n);
+				});
+				return r.sort((a, b) => Number((b.match(/^(\d+)x/) || [0, 1])[1]) - Number((a.match(/^(\d+)x/) || [0, 1])[1]));
+			}
 		},
 		"Dice": {
 			"keep-high": (arr, num) => arr.sort(Sort.Desc).slice(0, num),
 			"keep-low": (arr, num) => arr.sort(Sort.Asc).slice(0, num),
-			"keep-above": (arr, num) => {
-				arr = arr.sort(Sort.Desc);
-				for(var i = 0; i < arr.length; i++)
-				{
-					if(arr[i] < num)
-						return arr.slice(0, i - 1);
-				}
-			},
-			"keep-below": (arr, num) => {
-				arr = arr.sort(Sort.Asc);
-				for(var i = 0; i < arr.length; i++)
-				{
-					if(arr[i] >= num)
-						return arr.slice(0, i - 1);
-				}
-			},
+			"keep-above": (arr, num) => arr.filter(n => n >= num),
+			"keep-below": (arr, num) => arr.filter(n => n < num),
+			"sort-asc": (arr) => arr.sort(Sort.Asc),
+			"sort-desc": (arr) => arr.sort(Sort.Desc)
 		}
 	},
 	Macros = {},
@@ -155,7 +154,7 @@ function parseTokens(tokens, offset, str, embeddednessence)
 				{
 					dice.push(Math.ceil(Math.random() * sides));
 				}
-				dice = dice.sort(Sort.Desc);
+				// dice = dice.sort(Sort.Desc);
 				ops.forEach(op => { // op
 					if(Operands.Dice.hasOwnProperty(op.tag)) // op
 					{
