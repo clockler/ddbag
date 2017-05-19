@@ -56,16 +56,18 @@ Client.Dispatcher.on("MESSAGE_CREATE", e => {
 		{
 			try {
 				var res = Parser(content),
-					arr = Array.isArray(res);
+					arr = Array.isArray(res[0]),
+					nam = res[1] || content,
+					res = res[0];
 				if(arr && res.length > 0)
 				{
 					Log.Debug("=> [" + res.join(", ") + "]");
-					message.channel.sendMessage(content + ": " + res.join(", "))
+					message.channel.sendMessage(nam + ": " + res.join(", "))
 				}
 				else
 				{
 					Log.Debug("=> " + res);
-					message.channel.sendMessage(content + ": " + res);
+					message.channel.sendMessage(nam + ": " + res);
 				}
 			}
 			catch(err)

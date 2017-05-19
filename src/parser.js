@@ -1,6 +1,7 @@
 var Patterns = [
+		{"tag": "swroll", "exp": /t\!\(((?:\d*[apbdcs]+)+)\)/i },
 		{"tag": "roll", "exp": /(\d+)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
-		{"tag": "set-open", "exp": /(sum|count|group|[a-z\-]+\!)?\(/ },
+		{"tag": "set-open", "exp": /(sum|count|group)?\(/ },
 		{"tag": "set-close", "exp": /\)/ },
 		{"tag": "operand", "exp": /[\+\-\/\*\^\%]/ },
 		{"tag": "number", "exp": /\d+(?:\.\d+)?/ }
@@ -57,7 +58,33 @@ var Patterns = [
 		}
 	},
 	Macros = {},
-	MaxEmbeddednessence = 5;
+	MaxEmbeddednessence = 5,
+	Emoji = {
+		"Results": {
+			"s":     "<:swrsuccess:230983326473650176>",
+			"a":   "<:swradvantage:230982225464786944>",
+			"T":     "<:swrtriumph:230982301318774784>",
+			"f":     "<:swrfailure:230982263267917824>",
+			"t":      "<:swrthreat:230983337529966592>",
+			"d":     "<:swrdespair:230982249007415296>"
+		},
+		"Dice": {
+			"a":     "<:swdability:315020911243952128>",
+			"p": "<:swdproficiency:230982272088670208>",
+			"b":       "<:swdboost:230982234314637312>",
+			"d":  "<:swddifficulty:230982256192258048>",
+			"c":   "<:swdchallenge:230982241872773120>",
+			"s":     "<:swdsetback:230982279214792705>"
+		}
+	},
+	SWDice = {
+		"a": ["", "s", "s", "ss", "a", "a", "as", "aa"],
+		"p": ["", "s", "s", "ss", "ss", "a", "sa", "sa", "sa", "aa", "aa", "T"],
+		"b": ["", "", "s", "sa", "aa", "a"],
+		"d": ["", "f", "ff", "t", "t", "t", "tt", "ft"],
+		"c": ["", "f", "f", "ff", "ff", "t", "t", "ft", "ft", "tt", "tt", "d"],
+		"s": ["", "", "f", "f", "t", "t"]
+	};
 
 module.exports = function Parse(str, max_embeds)
 {
@@ -90,6 +117,7 @@ module.exports = function Parse(str, max_embeds)
 
 function parseTokens(tokens, offset, str, embeddednessence)
 {
+	var override;
 	if(!embeddednessence)
 		embeddednessence = 0;
 	if(embeddednessence >= MaxEmbeddednessence)
@@ -164,6 +192,75 @@ function parseTokens(tokens, offset, str, embeddednessence)
 				});
 				tttokens.push(dice);
 			}
+			else if(token.tag === "swroll")
+			{
+				var r = token[1].match(/\d*[apbdcs]/gi),
+					pool = {
+						"a": 0,
+						"p": 0,
+						"b": 0,
+						"d": 0,
+						"c": 0,
+						"s": 0
+					};
+				r.forEach(d => {
+					var m = d.match(/(\d*?)([apbdcs])/i),
+						n = Number(m[1] || 1),
+						d = m[2];
+					if(pool.hasOwnProperty(d))
+					{
+						pool[d] += n;
+					}
+				});
+				var os = [];
+				var result = {
+					"s": 0,
+					"f": 0,
+					"a": 0,
+					"t": 0,
+					"T": 0,
+					"d": 0
+				};
+				var count = (arr) => {
+					var ks = {};
+					arr.forEach(el => ks[el]++);
+					return ks;
+				};
+					
+				Object.keys(pool).forEach(die => {
+					os.push(Array(pool[die]).fill(Emoji.Dice[die]).join(""));
+					for(var i = 0; i < pool[die]; i++)
+					{
+						var els = count(SWDice[die][Math.floor(Math.random() * SWDice[die].length)].split(""));
+						Object.keys(els).forEach(el => result[el]++);
+					}
+				});
+				override = os.join("");
+				var s = [];
+				// Reduce success/failure
+				var real_result = {"s": 0, "f": 0, "a": 0, "t": 0, "T": 0, "d": 0};
+				if(result.s - result.f < 0)
+					real_result.f = 0 - (result.s - result.f);
+				else
+					real_result.s = result.s - result.f;
+
+				if(result.a - result.t < 0)
+					real_result.t = 0 - (result.a - result.t);
+				else
+					real_result.a = result.a - result.t;
+				
+				if(result.T - result.d < 0)
+					real_result.d = 0 - (result.T - result.d);
+				else
+					real_result.T = result.T - result.d;
+
+				result = real_result;
+
+				Object.keys(result).forEach(r => {
+					s.push(Array(result[r]).fill(Emoji.Results[r]).join(""));
+				});
+				tttokens.push([s.join("")]);
+			}
 			else if(token.tag === "number")
 			{
 				tttokens.push(Number(token[0].replace(/\,/g, "")));
@@ -196,7 +293,7 @@ function parseTokens(tokens, offset, str, embeddednessence)
 		// OKAY
 		var t = Array.isArray(tttokens[0])? "array" : typeof(tttokens[0]);
 		if(t === "array" || t === "number")
-			return tttokens[0];
+			return [tttokens[0], override];
 	}
 	else
 	{
@@ -208,11 +305,11 @@ function parseTokens(tokens, offset, str, embeddednessence)
 				v = Operands.Set.sum(v);
 				t = "number";
 			}
-			return a[k] = {"type": t, "value": v};
+			return [a[k] = {"type": t, "value": v}, override];
 		});
 		var res = reduceResult(tttokens);
 		res.map((v, k, a) => a[k] = v.value);
-		return res;
+		return [res, override];
 	}
 }
 
