@@ -47,7 +47,7 @@ Client.Dispatcher.on("MESSAGE_CREATE", e => {
 		content = e.message.resolveContent(),
 		name = e.message.author.username + "#" + e.message.author.discriminator,
 		member = Client.User.memberOf(e.message.guild),
-		mentioned = Client.User.isMentioned(message, true);
+		mentioned = message.channel.isDM || Client.User.isMentioned(message, true);
 	if(mentioned)
 	{
 		content = content.replace("@" + member.nick, "").replace("@" + member.username, "").trim();
