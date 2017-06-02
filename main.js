@@ -46,11 +46,12 @@ Client.Dispatcher.on("MESSAGE_CREATE", e => {
 	var message = e.message,
 		content = e.message.resolveContent(),
 		name = e.message.author.username + "#" + e.message.author.discriminator,
-		member = Client.User.memberOf(e.message.guild),
-		mentioned = message.channel.isDM || Client.User.isMentioned(message, true);
+		member = !e.message.isDM? Client.User : Client.User.memberOf(e.message.guild),
+		nick = member.nick? member.nick : member.username,
+		mentioned = (message.channel.isDM && message.author.id !== Client.User.id) || Client.User.isMentioned(message, true);
 	if(mentioned)
 	{
-		content = content.replace("@" + member.nick, "").replace("@" + member.username, "").trim();
+		content = content.replace("@" + nick, "").replace("@" + member.username, "").trim();
 		Log.Debug(name + ": " + content);
 		if(content.length > 0)
 		{
