@@ -18,6 +18,9 @@ Use `{count}d{sides}{mutations}` for rolling dice, such as `11d10` (note that re
 * `kl{count}` Keep the lowest `count` dice of the roll: `2d20kl1`
 * `ka{target}` Keep all dice which rolled greater than or equal to `target`: `11d10ka7`
 * `kb{target}` Keep all dice which rolled below `target`: `11d10kb7`
+* `sa` Sort the results in ascending order: `2d20sa`
+* `sd` Sort the results in descending order: `2d20sd`
+* `ss` Sort the results into sets: `11d10ss`
 
 ## Arithmetic
 
