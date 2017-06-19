@@ -146,8 +146,9 @@ function parseTokens(tokens, offset, str, embeddednessence)
 					// Just in case
 					set = 0;
 					// Xu Li: Do the thing!
-					var res = parseTokens(tokens.slice(setOpen + 1, idx), cursor, str.substr(0, token.index), embeddednessence + 1);
-					res = Operands.Set[setOperand](res);
+					var res = parseTokens(tokens.slice(setOpen + 1, idx), cursor, str.substr(0, token.index), embeddednessence + 1)[0];
+					if(Array.isArray(res))
+						res = Operands.Set[setOperand](res);
 					tttokens.push(res);
 				}
 			}
@@ -305,7 +306,7 @@ function parseTokens(tokens, offset, str, embeddednessence)
 				v = Operands.Set.sum(v);
 				t = "number";
 			}
-			return [a[k] = {"type": t, "value": v}, override];
+			return a[k] = {"type": t, "value": v};
 		});
 		var res = reduceResult(tttokens);
 		res.map((v, k, a) => a[k] = v.value);
