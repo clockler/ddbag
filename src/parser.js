@@ -14,6 +14,7 @@ var Patterns = [
 		{"tag": "keep-above", "exp": /ka(\d+)/ },
 		{"tag": "keep-below", "exp": /kb(\d+)/ },
 		{"tag": "sort-asc", "exp": /sa/ },
+		{"tag": "sort-sets", "exp": /ss/ },
 		{"tag": "sort-desc", "exp": /sd?/ }
 	],
 	Sort = {
@@ -54,7 +55,29 @@ var Patterns = [
 			"keep-above": (arr, num) => arr.filter(n => n >= num),
 			"keep-below": (arr, num) => arr.filter(n => n < num),
 			"sort-asc": (arr) => arr.sort(Sort.Asc),
-			"sort-desc": (arr) => arr.sort(Sort.Desc)
+			"sort-desc": (arr) => arr.sort(Sort.Desc),
+			"sort-sets": (arr) => {
+				var sets = {},
+					sorts = [];
+				arr.forEach(v => { sets[v] = (sets[v] || 0) + 1 });
+				Object.keys(sets).forEach(key => {
+					var count = sets[key];
+					sorts.push([count, key]);
+				});
+				sorts = sorts.sort((a, b) => {
+					if(a[0] === b[0])
+						return b[1] - a[1];
+					return b[0] - a[0];
+				});
+				var res = [];
+				sorts.forEach(set => {
+					if(set[0] > 1)
+						res.push("" + set[0] + "x" + set[1]);
+					else
+						res.push(String(set[1]));
+				});
+				return res;
+			}
 		}
 	},
 	Macros = {},
