@@ -1,10 +1,12 @@
 var Patterns = [
 		{"tag": "swroll", "exp": /t\!\(((?:\d*[apbdcs]+)+)\)/i },
 		{"tag": "roll", "exp": /(\d+)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
-		{"tag": "set-open", "exp": /(sum|count|group)?\(/ },
-		{"tag": "set-close", "exp": /\)/ },
 		{"tag": "operand", "exp": /[\+\-\/\*\^\%]/ },
 		{"tag": "number", "exp": /\d+(?:\.\d+)?/ }
+	],
+	SetPatterns = [
+		{"tag": "set-open", "exp": /(sum|count|group)?\(/ },
+		{"tag": "set-close", "exp": /\)/ }
 	],
 	Tokenize = require("./tokenize.js"),
 	Errors = require("./errors.js"),
@@ -109,10 +111,61 @@ var Patterns = [
 		"s": ["", "", "f", "f", "t", "t"]
 	};
 
-module.exports = function Parse(str, max_embeds)
+module.exports = function Parse(str, embeddednessence, max_embeds)
 {
-	if(typeof(max_embeds) === "number")
-		var MaxEmbeddednessence = max_embeds; // should scope to here
+	if(typeof(max_embeds) !== "number")
+		var max_embeds = MaxEmbeddednessence; // should scope to here
+
+	if(!embeddednessence)
+		embeddednessence = 0;
+	if(embeddednessence >= max_embeds)
+		throw new Errors.Typed(str, "StackExceeded", {});
+
+	var tokens = Tokenize(str, {
+		"patterns": SetPatterns,
+		"fillGaps": true,
+		"ignoreWhitespace": false
+	});
+	// Parse sets only first
+	var sDepth = 0,
+		sStart = -1,
+		sOp = null,
+		newTokens = [],
+		ogStr = str;
+
+	tokens.forEach((token, idx) => {
+		if(token.tag === "set-open")
+		{
+			if(sDepth === 0)
+			{
+				sStart = idx;
+			}
+			if(token[1])
+				sOp = token[1];
+			else
+				sOp = "sum";
+			sDepth++;
+		}
+		else if(token.tag === "set-close")
+		{
+			sDepth--;
+			if(sDepth === 0)
+			{
+				// Parse that inner
+				var res = Parse(tokens.slice(sStart + 1, idx).map((v, k, a) => { return a[k] = v[0]; }).join(""), embeddednessence + 1, max_embeds);
+				if(Array.isArray(res[0]))
+					res = Operands.Set[sOp](res[0]);
+				else
+					res = res[0];
+				newTokens.push(res);
+			}
+		}
+		else if(sDepth === 0)
+		{
+			newTokens.push(token);
+		}
+	});
+	str = newTokens.join("");
 	var tokens = Tokenize(str, {
 		"patterns": Patterns,
 		"fillGaps": true,
@@ -135,16 +188,15 @@ module.exports = function Parse(str, max_embeds)
 	{
 		throw new Errors.Validation(str, errs);
 	}
-	return parseTokens(tokens, 0, str, 0);
+	var res = parseTokens(tokens, 0, str);
+	if(res[1] === undefined && str !== ogStr)
+		res[1] = str;
+	return res;
 }
 
-function parseTokens(tokens, offset, str, embeddednessence)
+function parseTokens(tokens, offset, str)
 {
 	var override;
-	if(!embeddednessence)
-		embeddednessence = 0;
-	if(embeddednessence >= MaxEmbeddednessence)
-		throw new Errors.Typed(str, "StackExceeded", {});
 
 	var set = 0,
 		setOpen = null,
@@ -170,6 +222,7 @@ function parseTokens(tokens, offset, str, embeddednessence)
 					set = 0;
 					// Xu Li: Do the thing!
 					var res = parseTokens(tokens.slice(setOpen + 1, idx), cursor, str.substr(0, token.index), embeddednessence + 1)[0];
+					console.log("Parsed set (" + tokens.slice(setOpen + 1, idx).join("") + ")");
 					if(Array.isArray(res))
 						res = Operands.Set[setOperand](res);
 					tttokens.push(res);
