@@ -1,10 +1,12 @@
 var Patterns = [
 		{"tag": "swroll", "exp": /t\!\(((?:\d*[apbdcs]+)+)\)/i },
 		{"tag": "roll", "exp": /(\d+)?d(\d+)([^+-\/\*^%\(\)]+)?/ },
-		{"tag": "set-open", "exp": /(sum|count|group)?\(/ },
-		{"tag": "set-close", "exp": /\)/ },
 		{"tag": "operand", "exp": /[\+\-\/\*\^\%]/ },
 		{"tag": "number", "exp": /\d+(?:\.\d+)?/ }
+	],
+	SetPatterns = [
+		{"tag": "set-open", "exp": /(sum|count|group)?\(/ },
+		{"tag": "set-close", "exp": /\)/ }
 	],
 	Tokenize = require("./tokenize.js"),
 	Errors = require("./errors.js"),
@@ -14,6 +16,7 @@ var Patterns = [
 		{"tag": "keep-above", "exp": /ka(\d+)/ },
 		{"tag": "keep-below", "exp": /kb(\d+)/ },
 		{"tag": "sort-asc", "exp": /sa/ },
+		{"tag": "sort-sets", "exp": /ss/ },
 		{"tag": "sort-desc", "exp": /sd?/ }
 	],
 	Sort = {
@@ -54,7 +57,29 @@ var Patterns = [
 			"keep-above": (arr, num) => arr.filter(n => n >= num),
 			"keep-below": (arr, num) => arr.filter(n => n < num),
 			"sort-asc": (arr) => arr.sort(Sort.Asc),
-			"sort-desc": (arr) => arr.sort(Sort.Desc)
+			"sort-desc": (arr) => arr.sort(Sort.Desc),
+			"sort-sets": (arr) => {
+				var sets = {},
+					sorts = [];
+				arr.forEach(v => { sets[v] = (sets[v] || 0) + 1 });
+				Object.keys(sets).forEach(key => {
+					var count = sets[key];
+					sorts.push([count, key]);
+				});
+				sorts = sorts.sort((a, b) => {
+					if(a[0] === b[0])
+						return b[1] - a[1];
+					return b[0] - a[0];
+				});
+				var res = [];
+				sorts.forEach(set => {
+					if(set[0] > 1)
+						res.push("" + set[0] + "x" + set[1]);
+					else
+						res.push(String(set[1]));
+				});
+				return res;
+			}
 		}
 	},
 	Macros = {},
@@ -86,10 +111,61 @@ var Patterns = [
 		"s": ["", "", "f", "f", "t", "t"]
 	};
 
-module.exports = function Parse(str, max_embeds)
+module.exports = function Parse(str, embeddednessence, max_embeds)
 {
-	if(typeof(max_embeds) === "number")
-		var MaxEmbeddednessence = max_embeds; // should scope to here
+	if(typeof(max_embeds) !== "number")
+		var max_embeds = MaxEmbeddednessence; // should scope to here
+
+	if(!embeddednessence)
+		embeddednessence = 0;
+	if(embeddednessence >= max_embeds)
+		throw new Errors.Typed(str, "StackExceeded", {});
+
+	var tokens = Tokenize(str, {
+		"patterns": SetPatterns,
+		"fillGaps": true,
+		"ignoreWhitespace": false
+	});
+	// Parse sets only first
+	var sDepth = 0,
+		sStart = -1,
+		sOp = null,
+		newTokens = [],
+		ogStr = str;
+
+	tokens.forEach((token, idx) => {
+		if(token.tag === "set-open")
+		{
+			if(sDepth === 0)
+			{
+				sStart = idx;
+			}
+			if(token[1])
+				sOp = token[1];
+			else
+				sOp = "sum";
+			sDepth++;
+		}
+		else if(token.tag === "set-close")
+		{
+			sDepth--;
+			if(sDepth === 0)
+			{
+				// Parse that inner
+				var res = Parse(tokens.slice(sStart + 1, idx).map((v, k, a) => { return a[k] = v[0]; }).join(""), embeddednessence + 1, max_embeds);
+				if(Array.isArray(res[0]))
+					res = Operands.Set[sOp](res[0]);
+				else
+					res = res[0];
+				newTokens.push(res);
+			}
+		}
+		else if(sDepth === 0)
+		{
+			newTokens.push(token);
+		}
+	});
+	str = newTokens.join("");
 	var tokens = Tokenize(str, {
 		"patterns": Patterns,
 		"fillGaps": true,
@@ -112,16 +188,15 @@ module.exports = function Parse(str, max_embeds)
 	{
 		throw new Errors.Validation(str, errs);
 	}
-	return parseTokens(tokens, 0, str, 0);
+	var res = parseTokens(tokens, 0, str);
+	if(res[1] === undefined && str !== ogStr)
+		res[1] = str;
+	return res;
 }
 
-function parseTokens(tokens, offset, str, embeddednessence)
+function parseTokens(tokens, offset, str)
 {
 	var override;
-	if(!embeddednessence)
-		embeddednessence = 0;
-	if(embeddednessence >= MaxEmbeddednessence)
-		throw new Errors.Typed(str, "StackExceeded", {});
 
 	var set = 0,
 		setOpen = null,
@@ -146,8 +221,10 @@ function parseTokens(tokens, offset, str, embeddednessence)
 					// Just in case
 					set = 0;
 					// Xu Li: Do the thing!
-					var res = parseTokens(tokens.slice(setOpen + 1, idx), cursor, str.substr(0, token.index), embeddednessence + 1);
-					res = Operands.Set[setOperand](res);
+					var res = parseTokens(tokens.slice(setOpen + 1, idx), cursor, str.substr(0, token.index), embeddednessence + 1)[0];
+					console.log("Parsed set (" + tokens.slice(setOpen + 1, idx).join("") + ")");
+					if(Array.isArray(res))
+						res = Operands.Set[setOperand](res);
 					tttokens.push(res);
 				}
 			}
@@ -305,7 +382,7 @@ function parseTokens(tokens, offset, str, embeddednessence)
 				v = Operands.Set.sum(v);
 				t = "number";
 			}
-			return [a[k] = {"type": t, "value": v}, override];
+			return a[k] = {"type": t, "value": v};
 		});
 		var res = reduceResult(tttokens);
 		res.map((v, k, a) => a[k] = v.value);
