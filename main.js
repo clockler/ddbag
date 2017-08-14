@@ -44,45 +44,60 @@ Client.Dispatcher.on("DISCONNECTED", e => {
 });
 Client.Dispatcher.on("MESSAGE_CREATE", e => {
 	var message = e.message,
-		content = e.message.resolveContent(),
-		name = e.message.author.username + "#" + e.message.author.discriminator,
-		member = !e.message.isDM? Client.User : Client.User.memberOf(e.message.guild),
+		content = message.resolveContent(),
+		name = message.author.username + "#" + message.author.discriminator,
+		member = message.channel.isDM? Client.User : Client.User.memberOf(message.channel.guild),
 		nick = member.nick? member.nick : member.username,
 		mentioned = (message.channel.isDM && message.author.id !== Client.User.id) || Client.User.isMentioned(message, true);
+
 	if(mentioned)
 	{
-		content = content.replace("@" + nick, "").replace("@" + member.username, "").trim();
-		Log.Debug(name + ": " + content);
-		if(content.length > 0)
-		{
-			try {
-				var res = Parser(content),
-					arr = Array.isArray(res[0]),
-					nam = res[1] || content,
-					res = res[0];
-				if(arr && res.length > 0)
-				{
-					Log.Debug("=> [" + res.join(", ") + "]");
-					message.channel.sendMessage(nam + ": " + res.join(", "))
-				}
-				else
-				{
-					Log.Debug("=> " + res);
-					message.channel.sendMessage(nam + ": " + res);
-				}
-			}
-			catch(err)
+		// Split lines and only keep lines that start with mentions of us
+		var lines = content.split("\n").filter(v => (v.substr(0, nick.length + 1) === "@" + nick || v.substr(0, member.username.length + 1) === "@" + member.username));
+		lines.map((v, k, a) => { return a[k] = v.replace("@" + nick, "").replace("@" + member.username, "").trim(); });
+		var output = [],
+			errors = [];
+		lines.forEach(content => {
+			Log.Debug(name + ": " + content);
+			if(content.length > 0)
 			{
-				if(err.name === "ValidationError" || err.name === "RawError")
-				{
-					Log.Debug("=> " + err.errorMessage());
-					message.channel.sendMessage(message.author.mention + " " + err.friendlyMessage());
+				try {
+					var res = Parser(content),
+						arr = Array.isArray(res[0]),
+						nam = res[1] || content,
+						res = res[0];
+					if(arr && res.length > 0)
+					{
+						Log.Debug("=> [" + res.join(", ") + "]");
+						output.push(nam + ": " + res.join(", "))
+					}
+					else
+					{
+						Log.Debug("=> " + res);
+						output.push(nam + ": " + res);
+					}
 				}
-				else
+				catch(err)
 				{
-					Log.Error(err.stack);
+					if(err.name === "ValidationError" || err.name === "RawError")
+					{
+						Log.Debug("=> " + err.errorMessage());
+						errors.push(err.friendlyMessage());
+					}
+					else
+					{
+						Log.Error(err.stack);
+					}
 				}
 			}
+		});
+		if(errors.length > 0)
+		{
+			message.channel.sendMessage(message.author.mention + ": " + errors.join("\n"));
+		}
+		else if(output.length > 0)
+		{
+			message.channel.sendMessage(output.join("\n"));
 		}
 	}
 });
