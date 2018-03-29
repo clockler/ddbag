@@ -5,7 +5,7 @@ var Patterns = [
 		{"tag": "number", "exp": /\d+(?:\.\d+)?/ }
 	],
 	SetPatterns = [
-		{"tag": "set-open", "exp": /(sum|count|group)?\(/ },
+		{"tag": "set-open", "exp": /([\!\w]+)?\(/ },
 		{"tag": "set-close", "exp": /\)/ }
 	],
 	Tokenize = require("./tokenize.js"),
@@ -86,12 +86,13 @@ var Patterns = [
 	MaxEmbeddednessence = 5,
 	Emoji = {
 		"Results": {
-			"s":     "<:swrsuccess:230983326473650176>",
-			"a":   "<:swradvantage:230982225464786944>",
-			"T":     "<:swrtriumph:230982301318774784>",
-			"f":     "<:swrfailure:230982263267917824>",
-			"t":      "<:swrthreat:230983337529966592>",
-			"d":     "<:swrdespair:230982249007415296>"
+			// <:g_s:353143885855457291> <:g_a:353143885620445189> <:g_f:353143885930823691> <:g_t:353143885897269256> <:g_sp:353143886081818634> <:g_fp:353143885997801472>
+			"s":      "<:g_s:353143885855457291>",
+			"a":      "<:g_a:353143885620445189>",
+			"T":     "<:g_sp:353143886081818634>",
+			"f":      "<:g_f:353143885930823691>",
+			"t":      "<:g_t:353143885897269256>",
+			"d":     "<:g_fp:353143885997801472>"
 		},
 		"Dice": {
 			"a":     "<:swdability:315020911243952128>",
@@ -131,16 +132,24 @@ module.exports = function Parse(str, embeddednessence, max_embeds)
 		sStart = -1,
 		sOp = null,
 		newTokens = [],
-		ogStr = str;
+		ogStr = str,
+		errs = [];
+
 
 	tokens.forEach((token, idx) => {
 		if(token.tag === "set-open")
 		{
+			// Macros?
+			if(token[1] && token[1].substr(-1) === "!" && embeddednessence > 0)
+			{
+				// No macros in the set zone, just throw
+				errs.push(token)
+			}
 			if(sDepth === 0)
 			{
 				sStart = idx;
 			}
-			if(token[1])
+			if(token[1] && sOp === null)
 				sOp = token[1];
 			else
 				sOp = "sum";
@@ -151,13 +160,21 @@ module.exports = function Parse(str, embeddednessence, max_embeds)
 			sDepth--;
 			if(sDepth === 0)
 			{
-				// Parse that inner
-				var res = Parse(tokens.slice(sStart + 1, idx).map((v, k, a) => { return a[k] = v[0]; }).join(""), embeddednessence + 1, max_embeds);
-				if(Array.isArray(res[0]))
-					res = Operands.Set[sOp](res[0]);
+				if(sOp && sOp.substr(-1) === "!")
+				{
+					// Macro, so don't parse, only push the whole set
+					newTokens.push(sOp + "(" + tokens.slice(sStart + 1, idx).map((v, k, a) => { return a[k] = v[0]; }).join("") + ")")
+				}
 				else
-					res = res[0];
-				newTokens.push(res);
+				{
+					// Parse that inner
+					var res = Parse(tokens.slice(sStart + 1, idx).map((v, k, a) => { return a[k] = v[0]; }).join(""), embeddednessence + 1, max_embeds);
+					if(Array.isArray(res[0]))
+						res = Operands.Set[sOp](res[0]);
+					else
+						res = res[0];
+					newTokens.push(res);
+				}
 			}
 		}
 		else if(sDepth === 0)
@@ -183,7 +200,7 @@ module.exports = function Parse(str, embeddednessence, max_embeds)
 			tokens.unshift(fake);
 		}
 	}
-	var errs = validate(tokens);
+	errs = errs.concat(validate(tokens));
 	if(errs.length > 0)
 	{
 		throw new Errors.Validation(str, errs);
@@ -222,7 +239,7 @@ function parseTokens(tokens, offset, str)
 					set = 0;
 					// Xu Li: Do the thing!
 					var res = parseTokens(tokens.slice(setOpen + 1, idx), cursor, str.substr(0, token.index), embeddednessence + 1)[0];
-					console.log("Parsed set (" + tokens.slice(setOpen + 1, idx).join("") + ")");
+					// console.log("Parsed set (" + tokens.slice(setOpen + 1, idx).join("") + ")");
 					if(Array.isArray(res))
 						res = Operands.Set[setOperand](res);
 					tttokens.push(res);
@@ -316,6 +333,11 @@ function parseTokens(tokens, offset, str)
 				var s = [];
 				// Reduce success/failure
 				var real_result = {"s": 0, "f": 0, "a": 0, "t": 0, "T": 0, "d": 0};
+				result.s -= result.d;
+				result.f -= result.T;
+				real_result.d = result.d;
+				real_result.T = result.T;
+
 				if(result.s - result.f < 0)
 					real_result.f = 0 - (result.s - result.f);
 				else
@@ -325,11 +347,6 @@ function parseTokens(tokens, offset, str)
 					real_result.t = 0 - (result.a - result.t);
 				else
 					real_result.a = result.a - result.t;
-				
-				if(result.T - result.d < 0)
-					real_result.d = 0 - (result.T - result.d);
-				else
-					real_result.T = result.T - result.d;
 
 				result = real_result;
 
